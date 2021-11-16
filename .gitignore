@@ -1,0 +1,15 @@
+*~
+#*
+**/__pycache__/
+*.npz
+tmp*
+**/lightning_logs/**
+**/*.egg-info/**
+*.csv
+.~lock*
+*.yaml
+events.out*
+*.ckpt
+**/training_logs/**
+**/training_ckpt/**
+**/training_json/**

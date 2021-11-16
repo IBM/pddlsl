@@ -1,0 +1,10 @@
+
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pip
+  - parallel
+  - pip:
+      - pre-commit              # pre-commit hook for this project. installed only for development.
+      - mypy

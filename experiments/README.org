@@ -1,0 +1,119 @@
+
+Every python script in this repository is idempotent like GNU Make by default, i.e.,
+if the output file exists, it skips the execution.
+Nevertheless, each script has options for overriding the behavior (e.g., --force).
+Run each python script with -h option to see the detail.
+
+
+* Setting up a job scheduler
+
+Reproducing the entire experiment requires a large amount of compute.
+Running it without a GPU cluster may take a significant amount of time.
+Moreover, due to the sheer number of commands to run, orchestrating the entire experments is challenging
+without the help of a job scheduler.
+
+If you are a university student, there is a high chance that you have never interacted with it.
+Read the [[https://hpc-wiki.info/hpc/Scheduling_Basics][Scheduling Basics]] first. Then ask your advisor how to gain access to your university cluster.
+If your lab manages a small-to-middle scale cluster (e.g., 10 nodes) and have not yet set up a job scheduler,
+we highly recommend installing one.
+
+In the current repository, the code is configured to use IBM's internal job submission command =jbsub=.
+Your cluster would definitely have a different scheduler, thus you must customize the command accordingly.
+
+The following commands are roughly equivalent:
+They all submit the same command =[commands...]= to a different job scheduler
+configured to run for an hour, for x86-64 cpu, with maximum 4G memory, with one core and one GPU (1+1).
+=[project-name]= is an arbitrary tag that is unnecessary.
+
++ =jbsub= : =jbsub -queue x86_1h -mem 4g -cores 1+1 -proj [project-name] [commands...]=
++ [[http://docs.adaptivecomputing.com/10-0-1/Torque/torque.htm#topics/torque/3-jobs/3.1.3-requestingRes.htm][Torque/PBS]] : =qsub -l cput=3600,mem=4gb,nodes=1,ncpus=1,gpus=1 [commands...]=
++ [[https://slurm.schedmd.com/][Slurm]] : =sbatch --time=3600 --mem=4000 --cpus-per-task=1 [commands...]= (not complete; missing GPU specification)
++ [[https://gridscheduler.sourceforge.net/htmlman/htmlman1/qsub.html][SGE]] : =qsub -l s_rt=3600,s_vmem=4GB [commands...]= (not complete; missing GPU specification)
+
+Of course, we do not cover all [[https://en.wikipedia.org/wiki/Comparison_of_cluster_software][cluster software]] because there are too many.
+Consult a specialist administrator in your own institution.
+
+
+
+* Dataset generation
+
+The installation script downloads the generated dataset as a git submodule.
+To produce the dataset yourself, run =generate_data.sh=.
+
++ generate_data.sh --- Invokes generate_datum.py over all necessary combination of problem generation parameters.
+
++ generate_datum.py --- Given a parameter for PDDL problem generator,
+  + Generates a problem
+    + Problem names are assigned uniquely (up to md5 hash collision) and deterministically
+  + Solves it optimally with 5min, 8gb using A*+LMCut using fast downward
+    + Trivial instances (which satisfy goals at the initial states) are ignored
+  + for each intermediate state,
+    + Computes h* from the remaining path length
+    + Computes several heuristics (lmcut, ff, hmax)
+    + Computes a satisficing solution cost (upper bound of h*) using lama-first
+  + Saves the metadata into a json file
+    + For =X.pddl=, the file name is =X.json=
+
+Problem instances and their json files (containing state information and cost values) are organized as follows:
+
++ domain.pddl (single file)
++ train/*.pddl --- Training PDDL set. Generated with relatively small parameters
++ val/*.pddl --- Validation PDDL set. Generated with relatively small parameters (identical to train)
++ test/*.pddl --- Testing PDDL set. Generated with relatively small parameters (identical to train)
++ test2/*.pddl --- Testing PDDL set. Generated with larger parameters
++ plan/*.pddl --- 100 instances subsampled from test/.
++ plan2/*.pddl --- 100 instances subsampled from test2/.
+
+
+* Training and accuracy evaluation experiments
+
++ train.py --- Trains a heuristic function and compute various test losses.
+  Saves a json file containing evaluation metrics (e.g. best validation loss) and metadata/hyperparameters.
+
++ train_all.sh --- Reproduces the entire training experiments.
+  It generates the entire set of command lines invoking train.py and submits them to a job scheduler.
+  Each job trains a network, evaluates it, and saves the weights, and saves the metrics to a JSON file.
+
+  Training results are stored in multiple directories. They are:
+
+  + training_logs/ :: Tensorboard log files. Run `tensorboard` in each directory to see the training curve in the browser.
+  + training_ckpt/ :: Checkpoint files. Each training generates three checkpoint files. Each file stores the weight for:
+    + `[model-id].ckpt`  :: the last epoch
+    + `[model-id]-v_nll.ckpt` :: the epoch that achieved the best validation nll
+    + `[model-id]-v_mse.ckpt` :: the epoch that achieved the best validation mse
+  + training_json/ :: JSON files containing various test metrics.
+
++ test_all.sh --- Reproduces the entire evaluation results (JSON) from existing checkpoints.
+  It generates the entire set of command lines invoking train.py and submits them to a job scheduler.
+  Each job loads a checkpoint, evaluates it, and saves the metrics to a JSON file.
+
++ test_all_large.sh --- Generates evaluation results using a dataset that contains more challenging PDDL files.
+
+  The results are stored in =training_json_large/= instead.
+
+
+* Planning experiments
+
++ plan.py --- Evaluates a heuristic using GBFS in our modified pyperplan.
+  + To use a learned heuristic, provide a pathname of the JSON file generated by train.py as the name of the heuristic
+  + Otherwise, use a name of heuristic functions supported by pyperplan, e.g., ff, lmcut, etc.
+  + It stores the search results+metrics in a JSON file.
+  + When solving =X.pddl= using heuristic =h= or =h.json=, the results are stored in =X.logs/h.json=.
+
++ plan_all_{ff,hgn,nlm,rr}.sh --- Reproduces the entire planning experiment.
+
+
+* Plan validation
+
++ validate.py --- Validates the plan stored in a JSON file produced by plan.py.
+  + Uses VAL validator internally.
+
++ validate_all.sh --- Validates all JSON files under the data/*/plan directories.
+
+
+* Collecting statistics
+
+These scripts loads the json files and reformat their summary statistics into a CSV.
+
++ results_training.py :: Loads json files in =training_json= which contains the test metrics.
++ results_planning.py :: Loads json files in the PDDL directories which contains search statistics.

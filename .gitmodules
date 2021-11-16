@@ -1,0 +1,18 @@
+[submodule "libs/planner-scripts"]
+	path = libs/planner-scripts
+	url = https://github.com/guicho271828/planner-scripts
+[submodule "libs/VAL"]
+	path = libs/VAL
+	url = https://github.com/KCL-Planning/VAL.git
+[submodule "libs/pddl-generators"]
+	path = libs/pddl-generators
+	url = https://github.com/guicho271828/pddl-generator
+[submodule "libs/strips_hgn"]
+	path = libs/strips_hgn
+	url = https://github.com/guicho271828/STRIPS-HGN.git
+[submodule "libs/downward"]
+	path = libs/downward
+	url = https://github.com/aibasel/downward.git
+[submodule "libs/pddlsl-dataset"]
+	path = libs/pddlsl-dataset
+	url = https://github.com/heuristic-learning/pddlsl-dataset
